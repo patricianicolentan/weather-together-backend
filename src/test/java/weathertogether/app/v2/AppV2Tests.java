@@ -50,7 +50,11 @@ class AppV2Tests {
 			.thenReturn(Optional.empty());
 
 		// Make the API call
-		WeatherCacheData actualWeatherData = citiesV2Controller.getWeatherByLatAndLng("647c4c35cbefb6c29b8eb874", "11.9667", "50.7500");
+		WeatherCacheData actualWeatherData = citiesV2Controller.getWeatherByLatAndLng(
+				"647c4c35cbefb6c29b8eb874",
+				"11.9667",
+				"50.7500"
+		);
 
 		// Check response
 		assertThat(actualWeatherData).isNotNull();
