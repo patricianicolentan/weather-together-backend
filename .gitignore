@@ -1,4 +1,6 @@
 .env
+.gcloudignore
+src/main/java/weathertogether/app/config/MongoConfigDeploy.java
 src/main/appengine/app.yaml
 target/
 !.mvn/wrapper/maven-wrapper.jar

@@ -18,7 +18,6 @@ import weathertogether.app.model.WeatherCacheData;
 import java.util.Optional;
 
 @RestController
-@CrossOrigin(origins = "https://weather-together-web.netlify.app/")
 @RequestMapping("/v2")
 public class CitiesV2Controller {
     @Autowired
