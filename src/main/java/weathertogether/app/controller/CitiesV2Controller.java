@@ -48,51 +48,61 @@ public class CitiesV2Controller {
         WebClient webClient = WebClient.create();
         String url = String.format("https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_mean,windspeed_10m_max&forecast_days=1&timezone=auto", lat, lng);
         Map<String, Object> weatherData = null;
-
+        int maxRetries = 3;
+        int retryCount = 0;
+        
         try {
             weatherData = webClient.get()
                     .uri(url)
                     .retrieve()
                     .bodyToMono(Map.class)
                     .block();
+            if (weatherData != null) {
+                // Create response object
+                String weatherDataJson = new JSONObject(weatherData).toString();
+                JSONObject jsonObject = new JSONObject(weatherDataJson);
+                JSONObject dailyUnits = jsonObject.getJSONObject("daily_units");
+                JSONObject daily = jsonObject.getJSONObject("daily");
+                JSONArray timeArray = daily.getJSONArray("time");
+                JSONArray weatherCodeArray = daily.getJSONArray("weathercode");
+                JSONArray tempMaxArray = daily.getJSONArray("temperature_2m_max");
+                JSONArray tempMinArray = daily.getJSONArray("temperature_2m_min");
+                JSONArray appTempMaxArray = daily.getJSONArray("apparent_temperature_max");
+                JSONArray appTempMinArray = daily.getJSONArray("apparent_temperature_min");
+                JSONArray precipitationArray = daily.getJSONArray("precipitation_probability_mean");
+                JSONArray windspeedArray = daily.getJSONArray("windspeed_10m_max");
+                
+                WeatherCacheData response = new WeatherCacheData(
+                    cityID,
+                    weatherData.get("timezone").toString(),
+                    weatherData.get("timezone_abbreviation").toString(),
+                    Double.valueOf(weatherData.get("elevation").toString()),
+                    dailyUnits.getString("temperature_2m_max"),
+                    LocalDate.parse(timeArray.getString(0)),
+                    weatherCodeArray.getInt(0),
+                    tempMaxArray.getInt(0),
+                    tempMinArray.getInt(0),
+                    appTempMaxArray.getInt(0),
+                    appTempMinArray.getInt(0),
+                    precipitationArray.getInt(0),
+                    windspeedArray.getInt(0)
+                );
+
+                // Cache response in database and return it
+                weatherRepo.save(response);
+                return response;
+            } else {
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    // Sleep for a while before retrying
+                    Thread.sleep(1000); // Sleep for 1 second before the next retry
+                }
+            }
         } catch (WebClientResponseException ex) {
             System.err.println("API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
         } catch (Exception ex) {
             System.err.println("Unexpected error: " + ex.getMessage());
         }
-
-        // Create response object
-        String weatherDataJson = new JSONObject(weatherData).toString();
-        JSONObject jsonObject = new JSONObject(weatherDataJson);
-        JSONObject dailyUnits = jsonObject.getJSONObject("daily_units");
-        JSONObject daily = jsonObject.getJSONObject("daily");
-        JSONArray timeArray = daily.getJSONArray("time");
-        JSONArray weatherCodeArray = daily.getJSONArray("weathercode");
-        JSONArray tempMaxArray = daily.getJSONArray("temperature_2m_max");
-        JSONArray tempMinArray = daily.getJSONArray("temperature_2m_min");
-        JSONArray appTempMaxArray = daily.getJSONArray("apparent_temperature_max");
-        JSONArray appTempMinArray = daily.getJSONArray("apparent_temperature_min");
-        JSONArray precipitationArray = daily.getJSONArray("precipitation_probability_mean");
-        JSONArray windspeedArray = daily.getJSONArray("windspeed_10m_max");
-        
-        WeatherCacheData response = new WeatherCacheData(
-            cityID,
-            weatherData.get("timezone").toString(),
-            weatherData.get("timezone_abbreviation").toString(),
-            Double.valueOf(weatherData.get("elevation").toString()),
-            dailyUnits.getString("temperature_2m_max"),
-            LocalDate.parse(timeArray.getString(0)),
-            weatherCodeArray.getInt(0),
-            tempMaxArray.getInt(0),
-            tempMinArray.getInt(0),
-            appTempMaxArray.getInt(0),
-            appTempMinArray.getInt(0),
-            precipitationArray.getInt(0),
-            windspeedArray.getInt(0)
-        );
-
-        // Cache response in database and return it
-        weatherRepo.save(response);
-        return response;
+        throw new RuntimeException("API call failed after " + maxRetries + " retries. Please refresh and try again.");
     }
 }
